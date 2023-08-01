@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import *
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
+from PIL import Image, ImageTk
 
 from threading import Thread
 
@@ -15,11 +16,11 @@ from zipfile import *
 
 #sadly this is the closest thing to a C struct
 class shInfo:
-    program:ttk.StringVar       = ""
-    install_dir:ttk.StringVar   = ""
-    run_requirements:BooleanVar 
+    program:ttk.StringVar        = ""
+    install_dir:ttk.StringVar    = ""
+    run_prerequisites:BooleanVar 
     run_build:BooleanVar        
-    url:str                     = ""
+    url:str                      = ""
 
     output_text:ttk.ScrolledText
     progress:ttk.Floodgauge
@@ -47,8 +48,8 @@ def read_arg(arg:str, info:shInfo, root:Misc) -> None:
         info.program = StringVar(master=root, value=arg.removeprefix("program="))
     elif (arg.startswith("install_dir=")):
         info.install_dir = StringVar(master=root, value=arg.removeprefix("install_dir="))
-    elif (arg.startswith("run_requirements=")):
-        info.run_requirements = BooleanVar(master=root, value=getBool(arg.removeprefix("run_requirements=")))
+    elif (arg.startswith("run_prerequisites=")):
+        info.run_prerequisites = BooleanVar(master=root, value=getBool(arg.removeprefix("run_prerequisites=")))
     elif (arg.startswith("run_build=")):
         info.run_build = BooleanVar(master=root, value=getBool(arg.removeprefix("run_build=")))
     elif (arg.startswith("url=")):
@@ -58,11 +59,11 @@ def read_arg(arg:str, info:shInfo, root:Misc) -> None:
 def get_info(info:shInfo) -> None:
     shinstaller_msg(info, f"""
     shInfo:
-        program          : {info.program.get()},
-        install_dir      : {info.install_dir.get()}
-        run_requirements : {str(info.run_requirements.get())}
-        run_build        : {str(info.run_build.get())}
-        url              : {info.url}
+        program           : {info.program.get()},
+        install_dir       : {info.install_dir.get()}
+        run_prerequisites : {str(info.run_prerequisites.get())}
+        run_build         : {str(info.run_build.get())}
+        url               : {info.url}
 """)
 
 def install(info:shInfo) -> None:
@@ -120,15 +121,44 @@ def install(info:shInfo) -> None:
 
     info.progress["value"] = 75
 
+
+    cmd:str = ""
     try:
-        if (info.run_requirements == True):
-            shinstaller_ui_msg(info, "running requirements...")
-        if (info.run_build == True):
+        if (info.run_prerequisites.get() == True):
+
+            info.progress["value"] = 80
+
+            shinstaller_ui_msg(info, "running prerequisites...")
+
+            if (sys.platform == "win32"):
+                cmd = f"call \"{unzip_dir}/.shci/windows/prerequisites.bat\""
+            else:
+                cmd = f"sudo bash \"{unzip_dir}/.shci/linux/prerequisites.sh\""
+
+            shinstaller_ui_msg(info, cmd)
+            os.system(cmd)
+
+
+
+        if (info.run_build.get() == True):
+
+            info.progress["value"] = 90
+
             shinstaller_ui_msg(info, "running build...")
+
+            if (sys.platform == "win32"):
+                cmd = f"call \"{unzip_dir}/.shci/windows/build.bat\""
+            else:
+                cmd = f"sudo bash \"{unzip_dir}/.shci/linux/build.sh\""
+
+            shinstaller_ui_msg(info, cmd)
+            os.system(cmd)
+
     except Exception as exception:
         shinstaller_ui_msg(info, f"exception: {exception}")
         info.progress["bootstyle"] = "warning"
         return
+
 
     shinstaller_ui_msg(info, f"done")
 
@@ -138,7 +168,7 @@ def install(info:shInfo) -> None:
 
 
 
-def main() -> int:
+def main() -> int:#example call: python shinstaller/src/shinstaller.py
     
     info:shInfo = shInfo()
 
@@ -152,6 +182,10 @@ def main() -> int:
     root.rowconfigure(0, weight=1)
     root.rowconfigure(1, weight=4)
     root.columnconfigure(0, weight=1)
+
+    _image = Image.open("media/noise-5.png")
+    icon   = ImageTk.PhotoImage(image=_image)
+    root.wm_iconphoto(False, icon)
 
     #GET INFO
     #
@@ -207,18 +241,18 @@ def main() -> int:
 
     #RUN REQUIREMENTS
     #run .shci/os/requirements.sh
-    l = ttk.Label(master=f0, text="run requirements", bootstyle="light")
+    l = ttk.Label(master=f0, text="run prerequisites (dev)", bootstyle="light")
     l.grid(row=2, column=0, padx=5, pady=5, sticky="w")
 
-    b = ttk.Checkbutton(master=f0, variable=info.run_requirements, bootstyle="round-toggle-light")
+    b = ttk.Checkbutton(master=f0, variable=info.run_prerequisites, onvalue=True, offvalue=False, bootstyle="round-toggle-light")
     b.grid(row=2, column=1, padx=5, pady=5, sticky="e")
 
     #RUN BUILD
     #run .shci/os/build.sh (doesn't matter if something fails)
-    l = ttk.Label(master=f0, text="run build", bootstyle="light")
+    l = ttk.Label(master=f0, text="run build (dev)", bootstyle="light")
     l.grid(row=3, column=0, padx=5, pady=5, sticky="w")
 
-    b = ttk.Checkbutton(master=f0, var=info.run_build, bootstyle="round-toggle-light")
+    b = ttk.Checkbutton(master=f0, var=info.run_build, onvalue=True, offvalue=False, bootstyle="round-toggle-light")
     b.grid(row=3, column=1, padx=5, pady=5, sticky="e")
 
 
