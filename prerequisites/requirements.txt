@@ -1,3 +1,5 @@
 tkinter
 ttkbootstrap
 requests
+pyinstaller
+auto-py-to-exe
