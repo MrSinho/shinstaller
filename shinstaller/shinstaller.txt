@@ -1,0 +1,5 @@
+program=example
+install_dir=C:/Sinho Softworks
+run_prerequisites=True
+run_build=False
+url=https://www.learningcontainer.com/wp-content/uploads/2020/05/sample-zip-file.zip

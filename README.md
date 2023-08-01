@@ -1,2 +1,5 @@
 # shinstaller
-Universal installer for Sinho projects
+
+```
+Universal installer for Sinho personal projects
+```
