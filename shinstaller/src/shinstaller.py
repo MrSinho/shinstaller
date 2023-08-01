@@ -3,24 +3,37 @@ from tkinter import *
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 
+from threading import Thread
+
 import sys
+import requests
+import os
+import zipfile
+from zipfile import *
 
 
 
 #sadly this is the closest thing to a C struct
 class shInfo:
-    program:str                 = ""
+    program:ttk.StringVar       = ""
     install_dir:ttk.StringVar   = ""
     run_requirements:BooleanVar 
     run_build:BooleanVar        
-    
-    output_text:ttk.StringVar  = ""
-    percentage:IntVar          = 0
+    url:str                     = ""
+
+    output_text:ttk.ScrolledText
+    progress:ttk.Floodgauge
 
 
 
-def shinstaller_msg(msg:str) -> None:
+def shinstaller_msg(info:shInfo, msg:str) -> None:
     print(f"shinstaller message: {msg}\n")
+    return
+
+def shinstaller_ui_msg(info:shInfo, msg:str) -> None:
+    _msg:str = f"shinstaller message: {msg}\n"
+    info.output_text.insert(INSERT, _msg)
+    print(_msg)
     return
 
 def getBool(literal:str) -> bool:
@@ -31,19 +44,95 @@ def getBool(literal:str) -> bool:
 
 def read_arg(arg:str, info:shInfo, root:Misc) -> None:
     if (arg.startswith("program=")):
-        info.program = arg.removeprefix("program=")
+        info.program = StringVar(master=root, value=arg.removeprefix("program="))
     elif (arg.startswith("install_dir=")):
-        info.install_dir = arg.removeprefix("install_dir=")
+        info.install_dir = StringVar(master=root, value=arg.removeprefix("install_dir="))
     elif (arg.startswith("run_requirements=")):
         info.run_requirements = BooleanVar(master=root, value=getBool(arg.removeprefix("run_requirements=")))
     elif (arg.startswith("run_build=")):
         info.run_build = BooleanVar(master=root, value=getBool(arg.removeprefix("run_build=")))
+    elif (arg.startswith("url=")):
+        info.url = arg.removeprefix("url=")
     return
 
+def get_info(info:shInfo) -> None:
+    shinstaller_msg(info, f"""
+    shInfo:
+        program          : {info.program.get()},
+        install_dir      : {info.install_dir.get()}
+        run_requirements : {str(info.run_requirements.get())}
+        run_build        : {str(info.run_build.get())}
+        url              : {info.url}
+""")
 
 def install(info:shInfo) -> None:
-    url:str = f"https://github.com/mrsinho/{info.program}/latest"
-    shinstaller_msg(f"downloading {url}...")
+    info.progress["bootstyle"] = "success"#for second attempts
+
+
+    get_info(info)
+
+    dst_dir:str    = f"{info.install_dir.get()}/{info.program.get()}"
+    dst_path:str   = f"{dst_dir}/{info.program.get()}.zip"
+    unzip_dir:str  = f"{dst_dir}/{info.program.get()}"
+
+    os.system(f"mkdir \"{info.install_dir.get()}\"")
+    os.system(f"mkdir \"{dst_dir}\"")
+    os.system(f"mkdir \"{unzip_dir}\"")#for unzipping
+
+    shinstaller_ui_msg(info, f"destination directory : {dst_dir}")
+    shinstaller_ui_msg(info, f"destination path: {dst_path}")
+
+    shinstaller_ui_msg(info, "downloading...")
+
+    info.progress["value"] = 25
+
+    try:
+        buffer:requests.Response = requests.get(url=info.url)
+    except Exception as exception:
+        shinstaller_ui_msg(info, f"exception: {exception}")
+        info.progress["bootstyle"] = "warning"
+        return
+
+    shinstaller_ui_msg(info, "writing files...")
+
+    info.progress["value"] = 50
+
+    try:
+        dst = open(dst_path, "wb")
+        dst.write(buffer.content)
+        dst.close()
+    except Exception as exception:
+        shinstaller_ui_msg(info, f"exception: {exception}")
+        info.progress["bootstyle"] = "warning"
+        return
+
+    shinstaller_ui_msg(info, "extracting...")
+
+    try:
+        zip = zipfile.ZipFile(file=dst_path, mode="r")
+        zip.extractall(path=unzip_dir)
+    except Exception as exception:
+        shinstaller_ui_msg(info, f"exception: {exception}")
+        info.progress["bootstyle"] = "warning"
+        return
+
+    shinstaller_ui_msg(info, f"installing...")
+
+    info.progress["value"] = 75
+
+    try:
+        if (info.run_requirements == True):
+            shinstaller_ui_msg(info, "running requirements...")
+        if (info.run_build == True):
+            shinstaller_ui_msg(info, "running build...")
+    except Exception as exception:
+        shinstaller_ui_msg(info, f"exception: {exception}")
+        info.progress["bootstyle"] = "warning"
+        return
+
+    shinstaller_ui_msg(info, f"done")
+
+    info.progress["value"] = 100
 
     return
 
@@ -73,23 +162,17 @@ def main() -> int:
     else :
         try:
         
-            file        = open("info.txt", "r")
+            file        = open("shinstaller.txt", "r")
             s_info:list = file.read().split("\n") 
             file.close()
-            shinstaller_msg(f"info: {s_info}")
+            shinstaller_msg(info, f"info: {s_info}")
             for i in range (0, len(s_info), 1):
                 read_arg(s_info[i], info, root)
         
         except:
-            print("failed reading info.txt\n")
+            print("failed reading shinstaller.txt\n")
 
-    shinstaller_msg(f"""
-    shInfo:
-        program          : {info.program},
-        install_dir      : {info.install_dir}
-        run_requirements : {str(info.run_requirements.get())}
-        run_build        : {str(info.run_build.get())}
-""")
+    get_info(info)
 
 
     #SETUP
@@ -111,8 +194,7 @@ def main() -> int:
     l = ttk.Label(master=f0, text="program", bootstyle="light")
     l.grid(row=0, column=0, padx=5, pady=5, sticky="w")
 
-    m = ttk.Combobox(master=f0, values=info.program, bootstyle="light") 
-    m.insert(0, info.program)
+    m = ttk.Entry(master=f0, textvariable=info.program, bootstyle="light") 
     m.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
     #INSTALL DIR
@@ -120,8 +202,7 @@ def main() -> int:
     l = ttk.Label(master=f0, text="install dir", bootstyle="light")
     l.grid(row=1, column=0, padx=5, pady=5, sticky="w")
 
-    m = ttk.Entry(master=f0, bootstyle="light")
-    m.insert(0, info.install_dir)
+    m = ttk.Entry(master=f0, textvariable=info.install_dir, bootstyle="light")
     m.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
     #RUN REQUIREMENTS
@@ -143,7 +224,7 @@ def main() -> int:
 
     #INSTALL
     #just downloads plain files
-    i = ttk.Button(master=f0, text="install", bootstyle="outline-toolbutton-primary", command=lambda:install(info))
+    i = ttk.Button(master=f0, text="install", bootstyle="outline-toolbutton-primary", command=lambda:Thread(target=install, args=[info]).start())
     i.grid(row=4,  column=1, padx=5, pady=5, sticky="nsew")
 
     #OUTPUT AND STATUS
@@ -158,13 +239,13 @@ def main() -> int:
     
     #SCROLLED TEXT
     #
-    t = ttk.ScrolledText(master=f1)
-    t.grid(row=0, column=0, padx=5, pady=5, sticky="nsew", )
+    info.output_text = ttk.ScrolledText(master=f1)
+    info.output_text.grid(row=0, column=0, padx=5, pady=5, sticky="nsew", )
 
     #PROGRESS BAR
     #
-    h = ttk.Floodgauge(master=f1, value=info.percentage, text="progress...", bootstyle="success")
-    h.grid(row=1, column=0, padx=5, pady=5, sticky="sew")
+    info.progress = ttk.Floodgauge(master=f1, text="progress...", bootstyle="success")
+    info.progress.grid(row=1, column=0, padx=5, pady=5, sticky="sew")
 
     root.mainloop()
 

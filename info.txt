@@ -1,4 +1,0 @@
-program=example
-install_dir=C:/Sinho Softworks
-run_requirements=True
-run_build=False
