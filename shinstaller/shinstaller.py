@@ -1,16 +1,17 @@
 import tkinter as tk
-from tkinter import *
 import ttkbootstrap as ttk
-from ttkbootstrap.constants import *
-from PIL import Image, ImageTk
-
-from threading import Thread
 
 import sys
 import requests
 import os
 import zipfile
-from zipfile import *
+
+from tkinter                import *
+from zipfile                import *
+from threading              import Thread
+from ttkbootstrap.constants import *
+from PIL                    import Image, ImageTk
+from os                     import _wrap_close
 
 
 
@@ -20,19 +21,49 @@ class shInfo:
     install_dir:ttk.StringVar    = ""
     run_prerequisites:BooleanVar 
     run_build:BooleanVar        
-    url:str                      = ""
+    run_after_install:BooleanVar
+
+    url:str                        = ""
+    after_install_win32_dir:str    = ""
+    after_install_linux_dir:str    = ""   
+    after_install_win32:str        = ""
+    after_install_linux:str        = ""   
 
     output_text:ttk.ScrolledText
     progress:ttk.Floodgauge
 
 
 
-def shinstaller_msg(info:shInfo, msg:str) -> None:
+def shinstaller_read_file(path:str) -> str:
+    file = open(path, "r")
+    code = file.read()
+    file.close()
+    return code
+
+def shinstaller_ui_command(info:shInfo, _cmd:str) -> int:
+    _cmd += " > tmp.txt\n"
+
+    msg:str = f"shinstaller command: {_cmd}\n"
+    info.output_text.insert(INSERT, msg)
+    print(msg)
+
+    #os.system(_cmd)
+    r:_wrap_close = os.popen(cmd=_cmd)
+    exit_code:int = r._proc.wait()
+
+    output:str = shinstaller_read_file(f"tmp.txt")
+
+    info.output_text.insert(INSERT, output)
+
+    return 1
+
+def shinstaller_msg(msg:str) -> None:
     print(f"shinstaller message: {msg}\n")
     return
 
 def shinstaller_ui_msg(info:shInfo, msg:str) -> None:
     _msg:str = f"shinstaller message: {msg}\n"
+    
     info.output_text.insert(INSERT, _msg)
     print(_msg)
     return
@@ -54,16 +85,25 @@ def read_arg(arg:str, info:shInfo, root:Misc) -> None:
         info.run_build = BooleanVar(master=root, value=getBool(arg.removeprefix("run_build=")))
     elif (arg.startswith("url=")):
         info.url = arg.removeprefix("url=")
+    elif (arg.startswith("run_after_install=")):
+        info.run_after_install = BooleanVar(master=root, value=getBool(arg.removeprefix("run_after_install=")))
+    elif (arg.startswith("after_install_win32=")):
+        info.after_install_win32 = arg.removeprefix("after_install_win32=")
+    elif (arg.startswith("after_install_linux=")):
+        info.after_install_linux = arg.removeprefix("after_install_linux=")
     return
 
 def get_info(info:shInfo) -> None:
-    shinstaller_msg(info, f"""
+    shinstaller_msg(f"""
     shInfo:
-        program           : {info.program.get()},
-        install_dir       : {info.install_dir.get()}
-        run_prerequisites : {str(info.run_prerequisites.get())}
-        run_build         : {str(info.run_build.get())}
-        url               : {info.url}
+        program                    : {info.program.get()},
+        install_dir                : {info.install_dir.get()}
+        run_prerequisites          : {str(info.run_prerequisites.get())}
+        run_build                  : {str(info.run_build.get())}
+        url                        : {info.url}
+        run_after_install          : {info.run_after_install}
+        after_install_win32        : {info.after_install_win32}
+        after_install_linux        : {info.after_install_linux}
 """)
 
 def install(info:shInfo) -> None:
@@ -75,10 +115,11 @@ def install(info:shInfo) -> None:
     dst_dir:str    = f"{info.install_dir.get()}/{info.program.get()}"
     dst_path:str   = f"{dst_dir}/{info.program.get()}.zip"
     unzip_dir:str  = f"{dst_dir}/{info.program.get()}"
+    repo_dir:str   = f"{unzip_dir}/{info.program.get()}"
 
-    os.system(f"mkdir \"{info.install_dir.get()}\"")
-    os.system(f"mkdir \"{dst_dir}\"")
-    os.system(f"mkdir \"{unzip_dir}\"")#for unzipping
+    shinstaller_ui_command(info, f"mkdir \"{info.install_dir.get()}\"")
+    shinstaller_ui_command(info, f"mkdir \"{dst_dir}\"")
+    shinstaller_ui_command(info, f"mkdir \"{unzip_dir}\"")#for unzipping
 
     shinstaller_ui_msg(info, f"destination directory : {dst_dir}")
     shinstaller_ui_msg(info, f"destination path: {dst_path}")
@@ -121,7 +162,6 @@ def install(info:shInfo) -> None:
 
     info.progress["value"] = 75
 
-
     cmd:str = ""
     try:
         if (info.run_prerequisites.get() == True):
@@ -131,28 +171,12 @@ def install(info:shInfo) -> None:
             shinstaller_ui_msg(info, "running prerequisites...")
 
             if (sys.platform == "win32"):
-                cmd = f"call \"{unzip_dir}/.shci/windows/prerequisites.bat\""
+                cmd = f"call \"{repo_dir}/.shci/windows/prerequisites.bat\""
             else:
-                cmd = f"sudo bash \"{unzip_dir}/.shci/linux/prerequisites.sh\""
+                cmd = f"sudo bash \"{repo_dir}/.shci/linux/prerequisites.sh\""
 
-            shinstaller_ui_msg(info, cmd)
-            os.system(cmd)
+            shinstaller_ui_command(info, cmd)
 
-
-
-        if (info.run_build.get() == True):
-
-            info.progress["value"] = 90
-
-            shinstaller_ui_msg(info, "running build...")
-
-            if (sys.platform == "win32"):
-                cmd = f"call \"{unzip_dir}/.shci/windows/build.bat\""
-            else:
-                cmd = f"sudo bash \"{unzip_dir}/.shci/linux/build.sh\""
-
-            shinstaller_ui_msg(info, cmd)
-            os.system(cmd)
 
     except Exception as exception:
         shinstaller_ui_msg(info, f"exception: {exception}")
@@ -176,7 +200,7 @@ def main() -> int:#example call: python shinstaller.py
     #
     #
     root = ttk.Window(themename="cyborg")
-    root.geometry("400x700")
+    root.geometry("400x650")
     root.title("Sinho Softworks installer")
 
     root.rowconfigure(0, weight=1)
@@ -199,12 +223,12 @@ def main() -> int:#example call: python shinstaller.py
             file        = open("shinstaller.txt", "r")
             s_info:list = file.read().split("\n") 
             file.close()
-            shinstaller_msg(info, f"info: {s_info}")
+            shinstaller_msg(f"info: {s_info}")
             for i in range (0, len(s_info), 1):
                 read_arg(s_info[i], info, root)
         
-        except:
-            print("failed reading shinstaller.txt\n")
+        except Exception as exception:
+            print(f"failed reading shinstaller.txt: {exception}\n")
 
     get_info(info)
 
@@ -218,6 +242,7 @@ def main() -> int:#example call: python shinstaller.py
     f0.rowconfigure(2, weight=1)
     f0.rowconfigure(3, weight=1)
     f0.rowconfigure(4, weight=1)
+    f0.rowconfigure(5, weight=1)
     f0.columnconfigure(0, weight=1)
     f0.columnconfigure(1, weight=2)
 
@@ -247,19 +272,13 @@ def main() -> int:#example call: python shinstaller.py
     t = ttk.Checkbutton(master=f0, variable=info.run_prerequisites, onvalue=True, offvalue=False, bootstyle="round-toggle-light")
     t.grid(row=2, column=1, padx=5, pady=5, sticky="e")
 
-    #RUN BUILD
-    #run .shci/os/build.sh (doesn't matter if something fails)
-    t = ttk.Label(master=f0, text="run build (dev)", bootstyle="light")
-    t.grid(row=3, column=0, padx=5, pady=5, sticky="w")
-
-    t = ttk.Checkbutton(master=f0, var=info.run_build, onvalue=True, offvalue=False, bootstyle="round-toggle-light")
-    t.grid(row=3, column=1, padx=5, pady=5, sticky="e")
-
-
     #INSTALL
     #just downloads plain files
     t = ttk.Button(master=f0, text="install", bootstyle="outline-toolbutton-primary", command=lambda:Thread(target=install, args=[info]).start())
-    t.grid(row=4,  column=1, padx=5, pady=5, sticky="nsew")
+    t.grid(row=7,  column=1, padx=5, pady=5, sticky="nsew")
+
+
+
 
     #OUTPUT AND STATUS
     #

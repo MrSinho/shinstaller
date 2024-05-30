@@ -1,5 +1,6 @@
-program=example
+program=gaia-universe-model-x64-v1.0.0
 install_dir=C:/Sinho Softworks
-run_prerequisites=True
+run_prerequisites=False
 run_build=False
-url=https://www.learningcontainer.com/wp-content/uploads/2020/05/sample-zip-file.zip
+url=https://github.com/MrSinho/gaia-universe-model/releases/download/v1.0.0/gaia-universe-model-x64-v1.0.0.zip
+run_after_install=True

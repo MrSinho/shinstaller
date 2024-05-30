@@ -13,6 +13,10 @@ See `prerequisites/requirements.txt`
  * pyinstaller
  * auto-py-to-exe
 
+## To do
+
+ * Dismiss python, use flutter/dart instead 
+
 ## Running python file
 
 ```
